@@ -49,30 +49,59 @@ const updateFlight = (updatedTicket, tickets) => {
 app.post('/RegisterPassengers', async (req, res) => {
 	let passengers = req.body.passengers
 	let tickets = req.body.tickets
+	const ticketsRegisteredArr = []
 	logReq('RegisterPassengers', { ticketsRequested: passengers })
 
-	for (let i = 0; i < tickets.length; i++) {
-		if (!passengers) break
+	logReq('AddCheckInEvent')
+	await fetch('http://localhost:4007/AddCheckInEvent', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			type: 'passengers_came',
+			passengers,
+		}),
+	})
 
-		if (
-			new Date(new Date(tickets[i].time).getTime() - 5 * 60000) > new Date(time)
-		) {
-			const ticketsRegistered = Math.min(
-				tickets[i].sold - tickets[i].registered,
-				getRandomInt(passengers)
-			)
-			console.log('ticketsRegistered', ticketsRegistered)
-			tickets = updateFlight(
-				{
-					flight: tickets[i].flight,
-					time: tickets[i].time,
-					amount: tickets[i].amount,
-					sold: tickets[i].sold,
-					registered: tickets[i].registered + ticketsRegistered,
-				},
-				tickets
-			)
+	if (passengers) {
+		for (let i = 0; i < tickets.length; i++) {
+			if (
+				new Date(new Date(tickets[i].time).getTime() - 5 * 60000) >
+				new Date(time)
+			) {
+				const ticketsRegistered = Math.min(
+					tickets[i].sold - tickets[i].registered,
+					getRandomInt(passengers)
+				)
+				if (ticketsRegistered > 0) {
+					ticketsRegisteredArr.push({
+						flight: tickets[i].flight,
+						tickets: ticketsRegistered,
+					})
+				}
+				tickets = updateFlight(
+					{
+						flight: tickets[i].flight,
+						time: tickets[i].time,
+						amount: tickets[i].amount,
+						sold: tickets[i].sold,
+						registered: tickets[i].registered + ticketsRegistered,
+					},
+					tickets
+				)
+			}
 		}
+	}
+
+	if (ticketsRegisteredArr.length > 0) {
+		logReq('AddCheckInEvent')
+		await fetch('http://localhost:4007/AddCheckInEvent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				type: 'tickets_registered',
+				ticketsRegisteredArr,
+			}),
+		})
 	}
 
 	currentTicketsState = tickets
